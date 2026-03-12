@@ -13,11 +13,7 @@ import (
 
 // SetupUnixSocketNotifier configures a unix socket to transmit touch requests to other apps
 func SetupUnixSocketNotifier(notifiers *sync.Map, exits *sync.Map) {
-	socketDir := os.Getenv("XDG_RUNTIME_DIR")
-	if socketDir == "" {
-		log.Error("Cannot setup unix socket notifier, $XDG_RUNTIME_DIR is not defined.")
-		return
-	}
+	socketDir := socketRuntimeDir()
 
 	if _, err := os.Stat(socketDir); err != nil {
 		log.Errorf("Cannot setup unix socket notifier, folder '%v' does not exist: %v", socketDir, err)

@@ -13,6 +13,8 @@ require (
 	github.com/vtolstov/go-ioctl v0.0.0-20151206205506-6be9cced4810
 )
 
+require github.com/karalabe/hid v1.0.0 // indirect
+
 require (
 	github.com/deckarep/golang-set v1.8.0
 	golang.org/x/sys v0.27.0 // indirect
