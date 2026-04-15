@@ -27,8 +27,8 @@ type hidrawDescriptor struct {
 	Value [4096]uint8
 }
 
-// WatchU2FLinux watches for U2F/FIDO2 touch events using Linux hidraw devices.
-func WatchU2FLinux(notifiers *sync.Map) {
+// WatchU2F watches for U2F/FIDO2 touch events using Linux hidraw devices.
+func WatchU2F(notifiers *sync.Map) {
 	checkAndInitWatcher := func(devicePath string) {
 		if isFidoU2FDeviceLinux(devicePath) {
 			dev, err := os.Open(devicePath)
@@ -89,7 +89,7 @@ func isFidoU2FDeviceLinux(devicePath string) bool {
 		prefix := data.Value[i]
 		tag := (prefix & 0b11110000) >> 4
 		typ := (prefix & 0b00001100) >> 2
-		sz := prefix & 0b00000011
+		size := prefix & 0b00000011
 
 		val1b := data.Value[i+1]
 		val2b := int(data.Value[i+1]) | (int(data.Value[i+2]) << 8)
@@ -104,7 +104,7 @@ func isFidoU2FDeviceLinux(devicePath string) bool {
 			return true
 		}
 
-		i += uint32(sz) + 1
+		i += uint32(size) + 1
 	}
 
 	return false

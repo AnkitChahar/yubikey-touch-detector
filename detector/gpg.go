@@ -10,9 +10,8 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-// WatchGPGLinux watches for hints that YubiKey is maybe waiting for a touch on a GPG request.
-// It uses Linux inotify to detect when shadowed private key files are opened.
-func WatchGPGLinux(filesToWatch []string, requestGPGCheck chan bool, _ *sync.Map) {
+// WatchGPG watches for hints that YubiKey is maybe waiting for a touch on a GPG request
+func WatchGPG(filesToWatch []string, requestGPGCheck chan bool, _ *sync.Map) {
 	// No need for a buffered channel,
 	// we are interested only in the first event, it's ok to skip all subsequent ones
 	events := make(chan notify.EventInfo)

@@ -17,9 +17,8 @@ import (
 	"github.com/maximbaz/yubikey-touch-detector/notifier"
 )
 
-// WatchHMACLinux watches when YubiKey is waiting for a touch on a HMAC request.
-// Uses Linux hidraw + sysfs to identify YubiKey devices.
-func WatchHMACLinux(notifiers *sync.Map) {
+// WatchHMAC watches when YubiKey is waiting for a touch on a HMAC request.
+func WatchHMAC(notifiers *sync.Map) {
 	devicesEvents := initInotifyWatcher("HMAC", "/dev", notify.Create, notify.Remove)
 	defer notify.Stop(devicesEvents)
 

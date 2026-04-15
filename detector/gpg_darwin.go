@@ -12,17 +12,10 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-// WatchGPGDarwin watches for GPG touch events on macOS by proxying the gpg-agent
-// Unix socket. Every time traffic flows through the agent socket (indicating a GPG
-// operation is in progress), requestGPGCheck is signalled. CheckGPGOnRequest then
-// uses GPGME Assuan to confirm whether the YubiKey is actually waiting for a touch.
-//
-// filesToWatch is accepted for interface compatibility with the Linux strategy but
-// is ignored on Darwin — socket proxying provides a more reliable trigger.
-//
-// exits is used to register a cleanup handler that restores the original socket on
-// graceful shutdown, preventing the ".original" stale-socket warning on next start.
-func WatchGPGDarwin(filesToWatch []string, requestGPGCheck chan bool, exits *sync.Map) {
+// WatchGPG watches for GPG touch events on macOS by proxying the gpg-agent Unix socket.
+// filesToWatch is ignored — socket proxying provides a more reliable trigger than inotify.
+// exits is used to register a cleanup handler that restores the original socket on shutdown.
+func WatchGPG(filesToWatch []string, requestGPGCheck chan bool, exits *sync.Map) {
 	socketFile := findGPGAgentSocket()
 	if socketFile == "" {
 		log.Error("GPG Darwin watcher: cannot find gpg-agent socket; disabling GPG touch detection")

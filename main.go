@@ -25,31 +25,27 @@ func main() {
 	truthyValues := map[string]bool{"true": true, "yes": true, "1": true}
 
 	envVerbose := truthyValues[strings.ToLower(os.Getenv("YUBIKEY_TOUCH_DETECTOR_VERBOSE"))]
-	envNotify := truthyValues[strings.ToLower(os.Getenv("YUBIKEY_TOUCH_DETECTOR_NOTIFY"))]
-	// Keep legacy env var for backwards compat on Linux.
 	envLibnotify := truthyValues[strings.ToLower(os.Getenv("YUBIKEY_TOUCH_DETECTOR_LIBNOTIFY"))]
 	envStdout := truthyValues[strings.ToLower(os.Getenv("YUBIKEY_TOUCH_DETECTOR_STDOUT"))]
 	envNosocket := truthyValues[strings.ToLower(os.Getenv("YUBIKEY_TOUCH_DETECTOR_NOSOCKET"))]
 	envDbus := truthyValues[strings.ToLower(os.Getenv("YUBIKEY_TOUCH_DETECTOR_DBUS"))]
 
-	var printVersion bool
+	var version bool
 	var verbose bool
-	var notify_ bool   // cross-platform desktop notification (libnotify on Linux, osascript on macOS)
-	var libnotify bool // legacy Linux-only alias for --notify
+	var libnotify bool
 	var stdout bool
 	var nosocket bool
 	var dbus bool
 
-	flag.BoolVar(&printVersion, "version", false, "print version and exit")
+	flag.BoolVar(&version, "version", false, "print version and exit")
 	flag.BoolVar(&verbose, "v", envVerbose, "enable debug logging")
-	flag.BoolVar(&notify_, "notify", envNotify || envLibnotify, "show desktop notifications (libnotify on Linux, osascript on macOS)")
-	flag.BoolVar(&libnotify, "libnotify", envLibnotify, "show desktop notifications using libnotify (Linux only; alias for --notify)")
+	flag.BoolVar(&libnotify, "libnotify", envLibnotify, "show desktop notifications using libnotify")
 	flag.BoolVar(&stdout, "stdout", envStdout, "print notifications to stdout")
 	flag.BoolVar(&nosocket, "no-socket", envNosocket, "disable unix socket notifier")
-	flag.BoolVar(&dbus, "dbus", envDbus, "enable dbus server for IPC (Linux only)")
+	flag.BoolVar(&dbus, "dbus", envDbus, "enable dbus server for IPC")
 	flag.Parse()
 
-	if printVersion {
+	if version {
 		fmt.Println("YubiKey touch detector version:", appVersion())
 		os.Exit(0)
 	}
@@ -72,8 +68,8 @@ func main() {
 	if !nosocket {
 		go notifier.SetupUnixSocketNotifier(notifiers, exits)
 	}
-	if notify_ || libnotify {
-		go notifier.SetupPlatformNotifier(notifiers)
+	if libnotify {
+		go notifier.SetupLibnotifyNotifier(notifiers)
 	}
 	if stdout {
 		go notifier.SetupStdoutNotifier(notifiers)
@@ -82,16 +78,15 @@ func main() {
 		go setupDbusNotifier(notifiers)
 	}
 
-	strategy := detector.NewDetectorStrategy()
-	go strategy.WatchU2F(notifiers)
-	go strategy.WatchHMAC(notifiers)
-	initGPGBasedDetectors(notifiers, exits, strategy)
+	go detector.WatchU2F(notifiers)
+	go detector.WatchHMAC(notifiers)
+	initGPGBasedDetectors(notifiers, exits)
 
 	wait := make(chan bool)
 	<-wait
 }
 
-func initGPGBasedDetectors(notifiers, exits *sync.Map, strategy detector.DetectorStrategy) {
+func initGPGBasedDetectors(notifiers, exits *sync.Map) {
 	ctx, err := gpgme.New()
 	if err != nil {
 		log.Debugf("Cannot initialize GPG context: %v. Disabling GPG and SSH watchers.", err)
@@ -122,7 +117,7 @@ func initGPGBasedDetectors(notifiers, exits *sync.Map, strategy detector.Detecto
 
 	requestGPGCheck := make(chan bool)
 	go detector.CheckGPGOnRequest(requestGPGCheck, notifiers, ctx)
-	go strategy.WatchGPG(filesToWatch, requestGPGCheck, exits)
+	go detector.WatchGPG(filesToWatch, requestGPGCheck, exits)
 	go detector.WatchSSH(requestGPGCheck, exits)
 }
 

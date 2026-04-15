@@ -10,12 +10,10 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-// WatchU2FDarwin watches for U2F/FIDO2 touch events on macOS using hidapi (IOKit).
-//
-// NOTE: macOS 10.15+ restricts unprivileged access to FIDO HID devices. If touch
-// detection does not work, run the binary with sudo, or grant Input Monitoring
-// permission in System Settings → Privacy & Security → Input Monitoring.
-func WatchU2FDarwin(notifiers *sync.Map) {
+// WatchU2F watches for U2F/FIDO2 touch events on macOS using hidapi (IOKit).
+// Note: macOS 10.15+ restricts unprivileged FIDO HID access; grant Input Monitoring
+// permission in System Settings → Privacy & Security, or run with sudo.
+func WatchU2F(notifiers *sync.Map) {
 	// Poll for new FIDO devices every second. hidapi has no hotplug callback on macOS.
 	known := map[string]bool{}
 
