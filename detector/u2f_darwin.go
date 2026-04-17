@@ -3,43 +3,101 @@
 package detector
 
 import (
+	"bufio"
+	"encoding/json"
+	"os/exec"
+	"strings"
 	"sync"
 	"time"
 
-	hid "github.com/karalabe/hid"
 	log "github.com/sirupsen/logrus"
+
+	"github.com/maximbaz/yubikey-touch-detector/notifier"
 )
 
-// WatchU2F watches for U2F/FIDO2 touch events on macOS using hidapi (IOKit).
-// Note: macOS 10.15+ restricts unprivileged FIDO HID access; grant Input Monitoring
-// permission in System Settings → Privacy & Security, or run with sudo.
+type u2fLogEntry struct {
+	EventMessage string `json:"eventMessage"`
+}
+
+// WatchU2F detects U2F/FIDO2 touch events on macOS by watching kernel IOHIDFamily
+// log messages. This never opens the FIDO HID device, so browsers can use WebAuthn
+// concurrently.
 func WatchU2F(notifiers *sync.Map) {
-	// Poll for new FIDO devices every second. hidapi has no hotplug callback on macOS.
-	known := map[string]bool{}
+	predicate := `processImagePath == "/kernel" AND senderImagePath ENDSWITH "IOHIDFamily"`
+	cmd := exec.Command("log", "stream", "--level", "debug", "--style", "ndjson", "--predicate", predicate)
 
-	for {
-		devices := hid.Enumerate(0, 0) // enumerate all HID devices
-		for _, info := range devices {
-			if info.UsagePage != FIDO_USAGE_PAGE || info.Usage != FIDO_USAGE_U2F {
-				continue
-			}
-			if known[info.Path] {
-				continue
-			}
-			known[info.Path] = true
-			log.Debugf("U2F Darwin: found FIDO device at %v (vendor=%04x product=%04x)", info.Path, info.VendorID, info.ProductID)
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		log.Errorf("U2F: cannot create log stream pipe: %v", err)
+		return
+	}
+	if err := cmd.Start(); err != nil {
+		log.Errorf("U2F: cannot start log stream: %v", err)
+		return
+	}
+	defer cmd.Process.Kill()
 
-			dev, err := info.Open()
-			if err != nil {
-				// Keep in known so we don't retry every second. The device will be
-				// re-attempted when it is physically reconnected (new path).
-				// Common cause: macOS restricts FIDO HID access without Input Monitoring
-				// permission (System Settings → Privacy & Security → Input Monitoring).
-				log.Warnf("U2F Darwin: cannot open FIDO device %v: %v (grant Input Monitoring permission if needed)", info.Path, err)
-				continue
-			}
-			go runU2FPacketWatcher(dev, notifiers)
+	// Map of IOHIDLibUserClient handles that belong to a YubiKey device.
+	yubiKeyClients := map[string]bool{}
+	lastMessage := notifier.U2F_OFF
+	var u2fOffTimer *time.Timer
+
+	broadcast := func(msg notifier.Message) {
+		if lastMessage == msg {
+			return
 		}
-		time.Sleep(1 * time.Second)
+		notifiers.Range(func(_, v interface{}) bool {
+			v.(chan notifier.Message) <- msg
+			return true
+		})
+		lastMessage = msg
+	}
+
+	scanner := bufio.NewScanner(stdout)
+	for scanner.Scan() {
+		var entry u2fLogEntry
+		if err := json.Unmarshal(scanner.Bytes(), &entry); err != nil {
+			continue
+		}
+
+		msg := entry.EventMessage
+
+		// e.g., "AppleUserUSBHostHIDDevice:0x100000c81 open by IOHIDLibUserClient:0x10016f869 (0x1)"
+		if strings.Contains(msg, "AppleUserUSBHostHIDDevice:") && strings.Contains(msg, "open by IOHIDLibUserClient:") {
+			parts := strings.SplitN(msg, " open by ", 2)
+			if len(parts) == 2 {
+				clientID := strings.Fields(parts[1])[0]
+				yubiKeyClients[clientID] = true
+				log.Debugf("U2F: registered YubiKey HID client %v", clientID)
+			}
+		}
+
+		// e.g., "IOHIDLibUserClient:0x10016f869 startQueue"
+		if strings.HasSuffix(msg, "startQueue") {
+			clientID := strings.Fields(msg)[0]
+			if yubiKeyClients[clientID] {
+				log.Debugf("U2F: startQueue for YubiKey client %v", clientID)
+				if u2fOffTimer != nil {
+					u2fOffTimer.Stop()
+				}
+				broadcast(notifier.U2F_ON)
+				u2fOffTimer = time.AfterFunc(2*time.Second, func() {
+					broadcast(notifier.U2F_OFF)
+				})
+			}
+		} else if strings.HasSuffix(msg, "stopQueue") {
+			clientID := strings.Fields(msg)[0]
+			if yubiKeyClients[clientID] {
+				log.Debugf("U2F: stopQueue for YubiKey client %v", clientID)
+				if u2fOffTimer != nil {
+					u2fOffTimer.Stop()
+				}
+				broadcast(notifier.U2F_OFF)
+			}
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		log.Errorf("U2F: log stream scanner error: %v", err)
 	}
 }

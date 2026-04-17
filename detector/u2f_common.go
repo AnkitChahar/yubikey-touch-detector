@@ -1,3 +1,5 @@
+//go:build linux
+
 package detector
 
 import (
@@ -8,20 +10,19 @@ import (
 	"github.com/maximbaz/yubikey-touch-detector/notifier"
 )
 
-// CTAPHID / U2F protocol constants — shared across platforms.
-// https://fidoalliance.org/specs/u2f-specs-master/inc/u2f_hid.h
-// https://fidoalliance.org/specs/fido2/fido-client-to-authenticator-protocol-v2.1-rd-20191217.html
 const (
-	TYPE_INIT         = 0x80
-	CTAPHID_MSG       = TYPE_INIT | 0x03
-	CTAPHID_KEEPALIVE = TYPE_INIT | 0x3b
-	FIDO_USAGE_PAGE   = 0xf1d0
-	FIDO_USAGE_U2F    = 0x01
+	// https://fidoalliance.org/specs/u2f-specs-master/inc/u2f_hid.h
+	// and its backwards-compatible successor
+	// https://fidoalliance.org/specs/fido2/fido-client-to-authenticator-protocol-v2.1-rd-20191217.html
+	TYPE_INIT          = 0x80
+	CTAPHID_MSG        = TYPE_INIT | 0x03
+	CTAPHID_KEEPALIVE  = TYPE_INIT | 0x3b
+	FIDO_USAGE_PAGE    = 0xf1d0
+	FIDO_USAGE_CTAPHID = 0x01
+	STATUS_UPNEEDED    = 0x02
 
 	// https://fidoalliance.org/specs/u2f-specs-master/inc/u2f.h
 	U2F_SW_CONDITIONS_NOT_SATISFIED = 0x6985
-
-	STATUS_UPNEEDED = 0x02
 
 	// https://github.com/torvalds/linux/blob/master/include/linux/hid.h
 	HID_ITEM_TYPE_GLOBAL           = 1
