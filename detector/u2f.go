@@ -96,7 +96,7 @@ func isFidoU2FDeviceLinux(devicePath string) bool {
 
 		if typ == HID_ITEM_TYPE_GLOBAL && tag == HID_GLOBAL_ITEM_TAG_USAGE_PAGE && val2b == FIDO_USAGE_PAGE {
 			isFido = true
-		} else if typ == HID_ITEM_TYPE_LOCAL && tag == HID_LOCAL_ITEM_TAG_USAGE && val1b == FIDO_USAGE_U2F {
+		} else if typ == HID_ITEM_TYPE_LOCAL && tag == HID_LOCAL_ITEM_TAG_USAGE && val1b == FIDO_USAGE_CTAPHID {
 			hasU2F = true
 		}
 
